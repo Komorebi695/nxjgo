@@ -153,10 +153,12 @@ func Default() *Engine {
 	engine.funcMap = nil
 	engine.HTMLRender = render.HTMLRender{}
 	engine.Logger = nxjLog.Default()
-	logPath, ok := config.Conf.Log["path"]
-	if ok {
-		engine.Logger.SetLogPath(logPath.(string))
-	}
+	//logPath, ok := config.Conf.Log["path"]
+	//if ok {
+	//	engine.Logger.SetLogPath(logPath.(string))
+	//}
+	// 默认日志目录
+	engine.Logger.SetLogPath("./log")
 	engine.Use(Logging, Recovery)
 	engine.router.engine = engine
 	return engine

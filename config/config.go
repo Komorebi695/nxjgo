@@ -27,7 +27,7 @@ func init() {
 }
 
 func localToml() {
-	configFile := flag.String("conf", "conf/app1.toml", "app config file")
+	configFile := flag.String("conf", "conf/app.toml", "app config file")
 	flag.Parse()
 	if _, err := os.Stat(*configFile); err != nil {
 		Conf.logger.Error(fmt.Sprintf("%v file load fail,because not exist", *configFile))

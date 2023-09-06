@@ -18,6 +18,8 @@ type NxjDb struct {
 
 type NxjSession struct {
 	db          *NxjDb
+	tx          *sql.Tx
+	beginTx     bool
 	tableName   string
 	fieldName   []string
 	placeHolder []string
@@ -25,6 +27,8 @@ type NxjSession struct {
 	updateParam strings.Builder
 	whereParam  strings.Builder
 	whereValue  []any
+	limitValue  int64
+	offsetValue int64
 }
 
 func Open(driverName string, source string) (*NxjDb, error) {
@@ -93,7 +97,13 @@ func (s *NxjSession) Insert(data any) (int64, int64, error) {
 	s.fieldNames(data)
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s);", s.tableName, strings.Join(s.fieldName, ","), strings.Join(s.placeHolder, ","))
 	s.db.logger.Info(query)
-	stmt, err := s.db.db.Prepare(query)
+	var stmt *sql.Stmt
+	var err error
+	if s.beginTx {
+		stmt, err = s.tx.Prepare(query)
+	} else {
+		stmt, err = s.db.db.Prepare(query)
+	}
 	if err != nil {
 		return -1, -1, err
 	}
@@ -170,7 +180,13 @@ func (s *NxjSession) InsertBatch(data []any) (int64, int64, error) {
 	sb.WriteString(";")
 	query = sb.String()
 	s.db.logger.Info(query)
-	stmt, err := s.db.db.Prepare(query)
+	var stmt *sql.Stmt
+	var err error
+	if s.beginTx {
+		stmt, err = s.tx.Prepare(query)
+	} else {
+		stmt, err = s.db.db.Prepare(query)
+	}
 	if err != nil {
 		return -1, -1, err
 	}
@@ -306,7 +322,13 @@ func (s *NxjSession) Update(column string, value any) (int64, int64, error) {
 	sb.WriteString(";")
 	query = sb.String()
 	s.db.logger.Info(query)
-	stmt, err := s.db.db.Prepare(query)
+	var stmt *sql.Stmt
+	var err error
+	if s.beginTx {
+		stmt, err = s.tx.Prepare(query)
+	} else {
+		stmt, err = s.db.db.Prepare(query)
+	}
 	if err != nil {
 		return -1, -1, err
 	}
@@ -363,7 +385,6 @@ func (s *NxjSession) Updates(data any) (int64, int64, error) {
 		s.updateParam.WriteString(" = ?")
 		s.values = append(s.values, vVar.Field(i).Interface())
 	}
-
 	query := fmt.Sprintf("UPDATE %s SET %s", s.tableName, s.updateParam.String())
 	var sb strings.Builder
 	sb.WriteString(query)
@@ -371,7 +392,13 @@ func (s *NxjSession) Updates(data any) (int64, int64, error) {
 	sb.WriteString(";")
 	query = sb.String()
 	s.db.logger.Info(query)
-	stmt, err := s.db.db.Prepare(query)
+	var stmt *sql.Stmt
+	var err error
+	if s.beginTx {
+		stmt, err = s.tx.Prepare(query)
+	} else {
+		stmt, err = s.db.db.Prepare(query)
+	}
 	if err != nil {
 		return -1, -1, err
 	}
@@ -391,29 +418,75 @@ func (s *NxjSession) Updates(data any) (int64, int64, error) {
 	return id, affected, nil
 }
 
-func (s *NxjSession) Where(field string, value any) *NxjSession {
+func (s *NxjSession) Where(field, condition string, value any) *NxjSession {
 	if s.whereParam.String() == "" {
 		s.whereParam.WriteString(" WHERE ")
-	} else {
-		s.whereParam.WriteString(" and ")
 	}
 	s.whereParam.WriteString(field)
-	s.whereParam.WriteString(" = ")
+	s.whereParam.WriteString(fmt.Sprintf(" %s ", condition))
 	s.whereParam.WriteString("?")
 	s.whereValue = append(s.whereValue, value)
 	return s
 }
 
-func (s *NxjSession) Or(field string, value any) *NxjSession {
+func (s *NxjSession) In(field string, values ...any) *NxjSession {
 	if s.whereParam.String() == "" {
-		s.whereParam.WriteString("WHERE ")
-	} else {
-		s.whereParam.WriteString(" or ")
+		s.whereParam.WriteString(" WHERE ")
 	}
 	s.whereParam.WriteString(field)
-	s.whereParam.WriteString(" = ")
+	s.whereParam.WriteString(" IN (")
+	for i, v := range values {
+		s.whereParam.WriteString("?")
+		if i < len(values)-1 {
+			s.whereParam.WriteString(",")
+		} else {
+			s.whereParam.WriteString(")")
+		}
+		s.whereValue = append(s.whereValue, v)
+	}
+	return s
+}
+
+func (s *NxjSession) Between(field string, v1 any, v2 any) *NxjSession {
+	if s.whereParam.String() == "" {
+		s.whereParam.WriteString(" WHERE ")
+	}
+	s.whereParam.WriteString(field)
+	s.whereParam.WriteString(" BETWEEN ")
+	s.whereParam.WriteString("?")
+	s.whereParam.WriteString(" AND ")
+	s.whereParam.WriteString("?")
+	s.whereValue = append(s.whereValue, v1, v2)
+	return s
+}
+
+func (s *NxjSession) IsNull(field string) *NxjSession {
+	if s.whereParam.String() == "" {
+		s.whereParam.WriteString(" WHERE ")
+	}
+	s.whereParam.WriteString(field)
+	s.whereParam.WriteString(" IS NULL")
+	return s
+}
+
+func (s *NxjSession) Like(field string, value any) *NxjSession {
+	if s.whereParam.String() == "" {
+		s.whereParam.WriteString(" WHERE ")
+	}
+	s.whereParam.WriteString(field)
+	s.whereParam.WriteString(" LIKE ")
 	s.whereParam.WriteString("?")
 	s.whereValue = append(s.whereValue, value)
+	return s
+}
+
+func (s *NxjSession) And() *NxjSession {
+	s.whereParam.WriteString(" AND ")
+	return s
+}
+
+func (s *NxjSession) Or() *NxjSession {
+	s.whereParam.WriteString(" OR ")
 	return s
 }
 
@@ -432,12 +505,16 @@ func (s *NxjSession) SelectOne(data any, fields ...string) error {
 	if len(fields) > 0 {
 		fieldStr = strings.Join(fields, ",")
 	}
-	query := fmt.Sprintf("SELECT %s FROM %s ", fieldStr, s.tableName)
+	query := fmt.Sprintf("SELECT %s FROM %s", fieldStr, s.tableName)
 	var sb strings.Builder
 	sb.WriteString(query)
 	sb.WriteString(s.whereParam.String())
+	if s.limitValue > 0 {
+		sb.WriteString(" LIMIT ? OFFSET ?")
+		s.whereValue = append(s.whereValue, s.limitValue, s.offsetValue)
+	}
+	sb.WriteString(";")
 	s.db.logger.Info(sb.String())
-
 	stmt, err := s.db.db.Prepare(sb.String())
 	if err != nil {
 		return err
@@ -482,5 +559,331 @@ func (s *NxjSession) SelectOne(data any, fields ...string) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (s *NxjSession) Select(data any, fields ...string) error {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Slice {
+		return errors.New("data must be a pointer to a slice")
+	}
+	tVar := t.Elem()
+	if s.tableName == "" {
+		s.tableName = s.db.Prefix + strings.ToLower(NameFormat(tVar.Name()))
+	}
+	fieldStr := "*"
+	if len(fields) > 0 {
+		fieldStr = strings.Join(fields, ",")
+	}
+	query := fmt.Sprintf("SELECT %s FROM %s", fieldStr, s.tableName)
+	var sb strings.Builder
+	sb.WriteString(query)
+	sb.WriteString(s.whereParam.String())
+	if s.limitValue > 0 {
+		sb.WriteString(" LIMIT ? OFFSET ?")
+		s.whereValue = append(s.whereValue, s.limitValue, s.offsetValue)
+	}
+	sb.WriteString(";")
+	s.db.logger.Info(sb.String())
+	stmt, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return err
+	}
+	rows, err := stmt.Query(s.whereValue...)
+	if err != nil {
+		return err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	t = t.Elem().Elem()
+	v := reflect.ValueOf(data).Elem()
+	for rows.Next() {
+		newElem := reflect.New(t)
+		values := make([]any, len(columns))
+		fieldScan := make([]any, len(columns))
+		for i := range fieldScan {
+			fieldScan[i] = &values[i]
+		}
+		err = rows.Scan(fieldScan...)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < t.NumField(); i++ {
+			name := t.Field(i).Name
+			tag := t.Field(i).Tag
+			sqlTag := tag.Get("norm")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(NameFormat(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := values[j]
+					targetValue := reflect.ValueOf(target)
+					fieldType := t.Field(i).Type
+					res := reflect.ValueOf(targetValue.Interface()).Convert(fieldType)
+					newElem.Elem().FieldByName(name).Set(res)
+				}
+			}
+		}
+		newSlice := reflect.Append(v, newElem.Elem())
+		v.Set(newSlice)
+	}
+	return nil
+}
+
+func (s *NxjSession) Delete() (int64, error) {
+	// delete from table where id = ?;
+	query := fmt.Sprintf("DELETE FROM %s ", s.tableName)
+	var sb strings.Builder
+	sb.WriteString(query)
+	sb.WriteString(s.whereParam.String())
+	sb.WriteString(";")
+	s.db.logger.Info(sb.String())
+	stmt, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return -1, err
+	}
+	r, err := stmt.Exec(s.whereValue...)
+	if err != nil {
+		return -1, err
+	}
+	return r.RowsAffected()
+}
+
+func (s *NxjSession) Group(field ...string) *NxjSession {
+	// group by a,b
+	s.whereParam.WriteString(" GROUP BY ")
+	s.whereParam.WriteString(strings.Join(field, ","))
+	return s
+}
+
+func (s *NxjSession) Order(field ...string) *NxjSession {
+	// order by a,b
+	s.whereParam.WriteString(" ORDER BY ")
+	s.whereParam.WriteString(strings.Join(field, ","))
+	return s
+}
+
+func (s *NxjSession) OrderDesc(field ...string) *NxjSession {
+	// order by a,b
+	s.whereParam.WriteString(" ORDER BY ")
+	s.whereParam.WriteString(strings.Join(field, ","))
+	s.whereParam.WriteString(" DESC")
+	return s
+}
+
+func (s *NxjSession) Limit(limit int64) *NxjSession {
+	s.limitValue = limit
+	return s
+}
+
+func (s *NxjSession) Offset(offset int64) *NxjSession {
+	s.offsetValue = offset
+	return s
+}
+
+func (s *NxjSession) Count(count *int64) error {
+	err := s.Aggregate("COUNT", "*", count)
+	return err
+}
+
+// Aggregate 聚合函数
+// funcName: 函数名称
+// field: 字段
+// result: 结果指针
+func (s *NxjSession) Aggregate(funcName string, field string, result any) error {
+	t := reflect.TypeOf(result)
+	if t.Kind() != reflect.Ptr {
+		return errors.New("result type must be a pointer")
+	}
+	query := fmt.Sprintf("SELECT %s(%s) FROM %s", funcName, field, s.tableName)
+	var sb strings.Builder
+	sb.WriteString(query)
+	sb.WriteString(s.whereParam.String())
+	sb.WriteString(";")
+	s.db.logger.Info(sb.String())
+	stmt, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return err
+	}
+	row := stmt.QueryRow(s.whereValue...)
+	err = row.Err()
+	if err != nil {
+		return err
+	}
+	err = row.Scan(result)
+	return err
+}
+
+func (s *NxjSession) Exec(sqlStr string, values ...any) (int64, error) {
+	s.db.logger.Info(sqlStr)
+	var stmt *sql.Stmt
+	var err error
+	if s.beginTx {
+		stmt, err = s.tx.Prepare(sqlStr)
+	} else {
+		stmt, err = s.db.db.Prepare(sqlStr)
+	}
+	if err != nil {
+		return 0, err
+	}
+	r, err := stmt.Exec(values)
+	if err != nil {
+		return 0, err
+	}
+	if strings.Contains(strings.ToLower(sqlStr), "insert") {
+		return r.LastInsertId()
+	}
+	return r.RowsAffected()
+}
+
+// QueryRow 查询单个结果
+func (s *NxjSession) QueryRow(sqlStr string, data any, queryValues ...any) error {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Ptr {
+		panic(errors.New("data must be pointer"))
+	}
+	tVar := t.Elem()
+	s.db.logger.Info(sqlStr)
+	stmt, err := s.db.db.Prepare(sqlStr)
+	if err != nil {
+		return err
+	}
+	rows, err := stmt.Query(queryValues...)
+	if err != nil {
+		return err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	values := make([]any, len(columns))
+	fieldScan := make([]any, len(columns))
+	for i := range fieldScan {
+		fieldScan[i] = &values[i]
+	}
+	if rows.Next() {
+		err = rows.Scan(fieldScan...)
+		v := reflect.ValueOf(data)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < tVar.NumField(); i++ {
+			name := tVar.Field(i).Name
+			tag := tVar.Field(i).Tag
+			sqlTag := tag.Get("norm")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(NameFormat(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := values[j]
+					targetValue := reflect.ValueOf(target)
+					fieldType := tVar.Field(i).Type
+					result := reflect.ValueOf(targetValue.Interface()).Convert(fieldType)
+					v.Elem().Field(i).Set(result)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// QueryRows 查询所有结果
+// sql: sql语句
+// data: 结果集切片指针，必须为一个指向切片的指针
+// queryValues: 查询参数
+func (s *NxjSession) QueryRows(sql string, data any, queryValues ...any) error {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Slice {
+		return errors.New("data must be a pointer to a slice")
+	}
+	stmt, err := s.db.db.Prepare(sql)
+	if err != nil {
+		return err
+	}
+	rows, err := stmt.Query(queryValues...)
+	if err != nil {
+		return err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	t = t.Elem().Elem()
+	v := reflect.ValueOf(data).Elem()
+	for rows.Next() {
+		newElem := reflect.New(t)
+		values := make([]any, len(columns))
+		fieldScan := make([]any, len(columns))
+		for i := range fieldScan {
+			fieldScan[i] = &values[i]
+		}
+		err = rows.Scan(fieldScan...)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < t.NumField(); i++ {
+			name := t.Field(i).Name
+			tag := t.Field(i).Tag
+			sqlTag := tag.Get("norm")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(NameFormat(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := values[j]
+					targetValue := reflect.ValueOf(target)
+					fieldType := t.Field(i).Type
+					res := reflect.ValueOf(targetValue.Interface()).Convert(fieldType)
+					newElem.Elem().FieldByName(name).Set(res)
+				}
+			}
+		}
+		newSlice := reflect.Append(v, newElem.Elem())
+		v.Set(newSlice)
+	}
+	return nil
+}
+
+func (s *NxjSession) Begin() error {
+	tx, err := s.db.db.Begin()
+	if err != nil {
+		return err
+	}
+	s.tx = tx
+	s.beginTx = true
+	return nil
+}
+
+func (s *NxjSession) Commit() error {
+	err := s.tx.Commit()
+	if err != nil {
+		return err
+	}
+	s.beginTx = false
+	return nil
+}
+
+func (s *NxjSession) Rollback() error {
+	err := s.tx.Rollback()
+	if err != nil {
+		return err
+	}
+	s.beginTx = false
 	return nil
 }

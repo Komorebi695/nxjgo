@@ -153,10 +153,10 @@ func Default() *Engine {
 	engine.funcMap = nil
 	engine.HTMLRender = render.HTMLRender{}
 	engine.Logger = nxjLog.Default()
-	//logPath, ok := config.Conf.Log["path"]
-	//if ok {
-	//	engine.Logger.SetLogPath(logPath.(string))
-	//}
+	logPath, ok := config.Conf.Log["path"]
+	if ok {
+		engine.Logger.SetLogPath(logPath.(string))
+	}
 	// 默认日志目录
 	engine.Logger.SetLogPath("./log")
 	engine.Use(Logging, Recovery)
@@ -177,6 +177,7 @@ func (e *Engine) LoadTemplate(pattern string) {
 	e.SetHtmlTemplate(t)
 }
 
+// LoadTemplateByConf 通过配置文件加载模板
 func (e *Engine) LoadTemplateByConf() {
 	pattern, ok := config.Conf.Template["pattern"]
 	if !ok {

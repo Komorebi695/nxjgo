@@ -22,9 +22,9 @@ type NXJConfig struct {
 	Pool     map[string]any
 }
 
-func init() {
-	localToml()
-}
+//func init() {
+//	localToml()
+//}
 
 func localToml() {
 	configFile := flag.String("conf", "conf/app.toml", "app config file")

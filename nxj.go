@@ -158,7 +158,7 @@ func Default() *Engine {
 		engine.Logger.SetLogPath(logPath.(string))
 	}
 	// 默认日志目录
-	engine.Logger.SetLogPath("./log")
+	//engine.Logger.SetLogPath("./log")
 	engine.Use(Logging, Recovery)
 	engine.router.engine = engine
 	return engine

@@ -26,7 +26,7 @@ import "github.com/Komorebi695/nxjgo"
 $ go get -u github.com/Komorebi695/nxjgo
 ```
 ### 运行NxjGo
-首先，您需要导入Gin软件包以使用Gin，一个最简单的示例如下：
+首先，您需要导入NxjGo软件包以使用NxjGo，一个最简单的示例如下：
 ```go
 package main
 

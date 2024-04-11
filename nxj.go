@@ -245,3 +245,82 @@ type ErrorHandler func(err error) (int, any)
 func (e *Engine) RegisterErrorHandler(err ErrorHandler) {
 	e.errorHandler = err
 }
+
+//func registerPath(r *routerGroup, path string, f interface{}, middle ...HandlerFunc) {
+//
+//}
+//
+//func handlerWarp(obj interface{}) HandlerFunc {
+//	f := reflect.ValueOf(obj)
+//	typ := reflect.TypeOf(obj)
+//
+//	if f.Kind() != reflect.Func {
+//		panic("obj must be func")
+//	}
+//	if typ.NumIn() > 2 || typ.NumIn() < 1 {
+//		panic("func must be 1 or 2 params")
+//	}
+//	if typ.In(0) != reflect.TypeOf(&Context{}) {
+//		panic("func first param must be gin.Context")
+//	}
+//	if typ.NumIn() == 2 && typ.In(1).Kind() != reflect.Ptr {
+//		panic("func second param must be ptr")
+//	}
+//	if typ.NumOut() != 1 {
+//		panic("func out num not equal 1")
+//	}
+//	tp1 := reflect.TypeOf((*BaseResponseInterface)(nil)).Elem()
+//	if !typ.Out(0).Implements(tp1) {
+//		panic("func out param not base response")
+//	}
+//
+//	return func(c *Context) {
+//		in := []reflect.Value{reflect.ValueOf(c)}
+//		var req interface{}
+//		// 解析请求
+//		if typ.NumIn() == 2 {
+//			secondType := typ.In(1)
+//			tmp := reflect.New(secondType.Elem()).Interface()
+//			if err := getRequest(c, tmp); err != nil {
+//				log.Fatalf("wrapper getrequest error: %v", err)
+//			}
+//			if err := validator.New().Struct(tmp); err != nil {
+//				c.AbortWithStatusJSON(http.StatusOK, model.ParamErrRsp)
+//				return
+//			}
+//			log.Printf("get req:%+v,type:%T", tmp, tmp)
+//			req = tmp
+//			in = append(in, reflect.ValueOf(req))
+//		}
+//		begin := time.Now()
+//		ans := f.Call(in)[0].Interface()
+//		c.JSON(http.StatusOK, ans)
+//		cost := time.Since(begin)
+//		log.Printf("uri:%v request:%v reponse:%v cost:%v", c.R.RequestURI, req, ans, cost)
+//
+//		if v, ok := ans.(BaseResponseInterface); ok {
+//			if v.GetError() != nil {
+//				log.Fatalf("when deal uri:%v,req:%v,appear err:%+v", c.R.RequestURI, req, v.GetError())
+//			}
+//		}
+//	}
+//}
+//
+//type BaseResponseInterface interface {
+//	GetCode() int
+//	GetMessage() string
+//	GetError() interface{}
+//}
+//
+//func getRequest(c *Context, req interface{}) error {
+//	if c.R.Method == http.MethodPost {
+//		body, err := c.GetRawData()
+//		if err != nil {
+//			return err
+//		}
+//		return json.Unmarshal(body, req)
+//	} else if c.R.Method == http.MethodGet {
+//		return c.BindQuery(req)
+//	}
+//	return nil
+//}

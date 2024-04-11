@@ -422,6 +422,9 @@ func (s *NxjSession) Where(field, condition string, value any) *NxjSession {
 	if s.whereParam.String() == "" {
 		s.whereParam.WriteString(" WHERE ")
 	}
+	if s.whereParam.String()[len(s.whereParam.String())-1] == '?' {
+		s.whereParam.WriteString(" AND ")
+	}
 	s.whereParam.WriteString(field)
 	s.whereParam.WriteString(fmt.Sprintf(" %s ", condition))
 	s.whereParam.WriteString("?")

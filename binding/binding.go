@@ -8,6 +8,7 @@ type Binding interface {
 }
 
 var (
-	JSON = jsonBinding{}
-	XML  = xmlBinding{}
+	JSON  = jsonBinding{}
+	XML   = xmlBinding{}
+	Query = queryBinding{}
 )

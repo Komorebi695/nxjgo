@@ -73,6 +73,6 @@ func TestHasPool(t *testing.T) {
 	runtime.ReadMemStats(&mem)
 	curMem = mem.TotalAlloc/MiB - curMem
 	t.Logf("memory usage:%d MB", curMem)
-	t.Logf("running worker:%d", pool.Running())
-	t.Logf("free worker:%d", pool.Free())
+	//t.Logf("running worker:%d", pool.Running())
+	//t.Logf("free worker:%d", pool.Free())
 }

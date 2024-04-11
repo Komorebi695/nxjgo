@@ -414,6 +414,10 @@ func (c *Context) BindXML(obj any) error {
 	return c.MustBindWith(obj, binding.XML)
 }
 
+//func (c *Context) ShouldBindQuery(obj any) error {
+//	return c.ShowBind(obj, binding.Query)
+//}
+
 func (c *Context) Fail(code int, msg string) {
 	_ = c.String(code, msg)
 }
@@ -421,4 +425,8 @@ func (c *Context) Fail(code int, msg string) {
 func (c *Context) ErrorHandle(err error) {
 	code, data := c.engine.errorHandler(err)
 	_ = c.JSON(code, data)
+}
+
+func (c *Context) GetRawData() ([]byte, error) {
+	return io.ReadAll(c.R.Body)
 }

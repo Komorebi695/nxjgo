@@ -7,6 +7,7 @@ import (
 
 func TestTreeNode(t *testing.T) {
 	//root := &treeNode{"/", make([]*treeNode, 0), "", false}
+	//fmt.Println("[nxjgo] 2024/05/20 - 08:25:44 |  200  |            0s |       127.0.0.1  | GET    \"/nxj/test\"")
 	root := &Trie{"/", make([]*Trie, 0), false}
 
 	root.Put("/user/get/:id")

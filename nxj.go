@@ -21,9 +21,9 @@ type routerGroup struct {
 	name               string
 	handleFuncMap      map[string]map[string]HandlerFunc      // map[路由]map[方法]HandlerFunc
 	middlewaresFuncMap map[string]map[string][]MiddlewareFunc // map[路由]map[方法]MiddlewareFunc
-	handleMethodMap    map[string][]string
-	treeNode           *treeNode
-	middlewares        []MiddlewareFunc
+	//handleMethodMap    map[string][]string
+	treeNode    *treeNode
+	middlewares []MiddlewareFunc
 }
 
 type MiddlewareFunc func(handlerFunc HandlerFunc) HandlerFunc
@@ -38,8 +38,8 @@ func (r *router) Group(name string) *routerGroup {
 		name:               name,
 		handleFuncMap:      make(map[string]map[string]HandlerFunc),
 		middlewaresFuncMap: make(map[string]map[string][]MiddlewareFunc),
-		handleMethodMap:    make(map[string][]string),
-		treeNode:           &treeNode{name: "/", children: make([]*treeNode, 0)},
+		//handleMethodMap:    make(map[string][]string),
+		treeNode: &treeNode{name: "/", children: make([]*treeNode, 0)},
 	}
 	g.Use(r.engine.middle...)
 	r.groups = append(r.groups, g)
@@ -83,7 +83,7 @@ func (r *routerGroup) handle(name string, method string, handlerFunc HandlerFunc
 	}
 	r.handleFuncMap[name][method] = handlerFunc
 	r.middlewaresFuncMap[name][method] = append(r.middlewaresFuncMap[name][method], middlewareFunc...)
-	r.handleMethodMap[method] = append(r.handleMethodMap[method], name)
+	//r.handleMethodMap[method] = append(r.handleMethodMap[method], name)
 	r.treeNode.Put(name)
 }
 
